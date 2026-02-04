@@ -1,0 +1,66 @@
+name: Trigger Jenkins Pipeline
+
+on:
+  pull_request:
+    types: [opened, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  trigger-jenkins:
+    # Only run on PR comments or PR events
+    if: |
+      (github.event_name == 'pull_request') ||
+      (github.event_name == 'issue_comment' && 
+       github.event.issue.pull_request && 
+       contains(github.event.comment.body, '/approve'))
+    
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.event.issue.pull_request.head.sha }}
+      
+      - name: Get PR details
+        id: pr-details
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "pr_branch=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+            echo "pr_author=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
+            echo "trigger_type=pr_created" >> $GITHUB_OUTPUT
+          else
+            echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            PR_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}")
+            PR_BRANCH=$(echo "$PR_DATA" | jq -r '.head.ref')
+            PR_AUTHOR=$(echo "$PR_DATA" | jq -r '.user.login')
+            echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
+            echo "pr_author=$PR_AUTHOR" >> $GITHUB_OUTPUT
+            echo "trigger_type=approve_comment" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Trigger Jenkins Pipeline
+        env:
+          JENKINS_JOB_NAME: "testing"
+        run: |
+          # Trigger Jenkins job with parameters
+          curl -X POST \
+            -u "https://unthriftily-unrenewable-charles.ngrok-free.dev/generic-webhook-trigger/invoke?token=test" \
+            "${JENKINS_URL}/job/${JENKINS_JOB_NAME}/buildWithParameters" \
+            --data-urlencode "PR_NUMBER=${{ steps.pr-details.outputs.pr_number }}" \
+            --data-urlencode "PR_BRANCH=${{ steps.pr-details.outputs.pr_branch }}" \
+            --data-urlencode "PR_AUTHOR=${{ steps.pr-details.outputs.pr_author }}" \
+            --data-urlencode "TRIGGER_TYPE=${{ steps.pr-details.outputs.trigger_type }}" \
+            --data-urlencode "REPO_URL=${{ github.repositoryUrl }}" \
+            --data-urlencode "COMMIT_SHA=${{ github.event.pull_request.head.sha || github.sha }}"
+      
+      - name: Add status check
+        if: success()
+        run: |
+          echo "Jenkins pipeline triggered successfully"
+          echo "PR Number: ${{ steps.pr-details.outputs.pr_number }}"
+          echo "Branch: ${{ steps.pr-details.outputs.pr_branch }}"
+          echo "Trigger: ${{ steps.pr-details.outputs.trigger_type }}"
