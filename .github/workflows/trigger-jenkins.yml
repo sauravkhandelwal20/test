@@ -37,38 +37,42 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.ACCESS_KEY }}
-          aws-secret-access-key: ${{ secrets.SECRET_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-
-      - name: Trigger Jenkins via AWS SSM (inline curl)
+      - name: Trigger Jenkins via AWS SSM
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+          SRC_BRANCH: ${{ steps.pr-details.outputs.pr_branch }}
+          DST_BRANCH: ${{ steps.pr-details.outputs.base_branch }}
+          COMMIT_ID: ${{ github.sha }}
+          JENKINS_URL: ${{ secrets.JENKINS_WEBHOOK_URL }}
         run: |
+          echo "Sending command with parameters:"
+          echo "Repository: $REPO_NAME"
+          echo "Source Branch: $SRC_BRANCH"
+          echo "Destination Branch: $DST_BRANCH"
+          echo "Commit ID: $COMMIT_ID"
+          
           aws ssm send-command \
             --region us-east-1 \
             --document-name "AWS-RunShellScript" \
             --targets "Key=instanceIds,Values=i-0f34a1e3eb3c387db" \
             --comment "Trigger Jenkins from PR approval" \
-            --parameters 'commands=[
-              "REPO=\"${{ github.event.repository.name }}\"",
-              "SRC_BRANCH=\"${{ steps.pr-details.outputs.pr_branch }}\"",
-              "DST_BRANCH=\"${{ steps.pr-details.outputs.base_branch }}\"",
-              "COMMIT=\"${{ github.sha }}\"",
-              "echo \"DEBUG: repo=$REPO src=$SRC_BRANCH dst=$DST_BRANCH commit=$COMMIT\"",
-              "curl -X POST \"${{ secrets.JENKINS_WEBHOOK_URL }}\" \
-                -H \"Content-Type: application/json\" \
-                -d \"{ \
-                  \\\"repository_name\\\": \\\"$REPO\\\", \
-                  \\\"src_branch\\\": \\\"$SRC_BRANCH\\\", \
-                  \\\"dst_branch\\\": \\\"$DST_BRANCH\\\", \
-                  \\\"lastCommitId\\\": \\\"$COMMIT\\\" \
-                }\""
-            ]'
+            --parameters "commands=[
+              \"echo 'Starting Jenkins trigger'\",
+              \"echo 'Repository: ${REPO_NAME}'\",
+              \"echo 'Source Branch: ${SRC_BRANCH}'\",
+              \"echo 'Destination Branch: ${DST_BRANCH}'\",
+              \"echo 'Commit ID: ${COMMIT_ID}'\",
+              \"curl -X POST '${JENKINS_URL}' -H 'Content-Type: application/json' -d '{\\\"repository_name\\\": \\\"${REPO_NAME}\\\", \\\"src_branch\\\": \\\"${SRC_BRANCH}\\\", \\\"dst_branch\\\": \\\"${DST_BRANCH}\\\", \\\"lastCommitId\\\": \\\"${COMMIT_ID}\\\"}'\"
+            ]"
    
       - name: Add status check
         if: success()
         run: |
-          echo "Jenkins pipeline triggered successfully"
+          echo "Jenkins pipeline triggered successfully via AWS SSM"
           echo "Repository: ${{ github.event.repository.name }}"
           echo "Source Branch (src_branch): ${{ steps.pr-details.outputs.pr_branch }}"
           echo "Destination Branch (dst_branch): ${{ steps.pr-details.outputs.base_branch }}"
