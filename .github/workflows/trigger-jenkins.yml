@@ -1,26 +1,16 @@
 name: Trigger Jenkins Pipeline
 
 on:
-  pull_request:
-    types: [opened, reopened]
-    branches:
-      - stage-terrasky
-      - production-terrasky
-      - dev-terrasky
   issue_comment:
     types: [created]
 
 jobs:
   trigger-jenkins:
-    # Only run on PR comments or PR events targeting specific branches
+    # Only run when someone comments /approve on a PR
     if: |
-      (github.event_name == 'pull_request' && 
-       (github.event.pull_request.base.ref == 'stage-terrasky' ||
-        github.event.pull_request.base.ref == 'production-terrasky' ||
-        github.event.pull_request.base.ref == 'dev-terrasky')) ||
-      (github.event_name == 'issue_comment' && 
-       github.event.issue.pull_request && 
-       contains(github.event.comment.body, '/approve'))
+      github.event_name == 'issue_comment' && 
+      github.event.issue.pull_request && 
+      contains(github.event.comment.body, '/approve')
     
     runs-on: ubuntu-latest
     
@@ -33,44 +23,18 @@ jobs:
       - name: Get PR details
         id: pr-details
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-            echo "pr_branch=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
-            echo "pr_author=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
-            echo "base_branch=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
-            echo "trigger_type=pr_created" >> $GITHUB_OUTPUT
-          else
-            echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
-            PR_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}")
-            PR_BRANCH=$(echo "$PR_DATA" | jq -r '.head.ref')
-            PR_AUTHOR=$(echo "$PR_DATA" | jq -r '.user.login')
-            BASE_BRANCH=$(echo "$PR_DATA" | jq -r '.base.ref')
-            echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
-            echo "pr_author=$PR_AUTHOR" >> $GITHUB_OUTPUT
-            echo "base_branch=$BASE_BRANCH" >> $GITHUB_OUTPUT
-            echo "trigger_type=approve_comment" >> $GITHUB_OUTPUT
-          fi
-      
-      - name: Check if PR targets allowed branches (for /approve comments)
-        if: github.event_name == 'issue_comment'
-        id: check-branch
-        run: |
-          BASE_BRANCH="${{ steps.pr-details.outputs.base_branch }}"
-          ALLOWED_BRANCHES=("stage-terrasky" "production-terrasky" "dev-terrasky")
-          
-          if [[ " ${ALLOWED_BRANCHES[@]} " =~ " ${BASE_BRANCH} " ]]; then
-            echo "branch_allowed=true" >> $GITHUB_OUTPUT
-          else
-            echo "branch_allowed=false" >> $GITHUB_OUTPUT
-            echo "PR is targeting branch: $BASE_BRANCH which is not in the allowed list"
-            exit 1
-          fi
+          echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          PR_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}")
+          PR_BRANCH=$(echo "$PR_DATA" | jq -r '.head.ref')
+          PR_AUTHOR=$(echo "$PR_DATA" | jq -r '.user.login')
+          BASE_BRANCH=$(echo "$PR_DATA" | jq -r '.base.ref')
+          echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
+          echo "pr_author=$PR_AUTHOR" >> $GITHUB_OUTPUT
+          echo "base_branch=$BASE_BRANCH" >> $GITHUB_OUTPUT
+          echo "trigger_type=approve_comment" >> $GITHUB_OUTPUT
       
       - name: Trigger Jenkins Pipeline via Webhook
-        if: |
-          github.event_name == 'pull_request' || 
-          (github.event_name == 'issue_comment' && steps.check-branch.outputs.branch_allowed == 'true')
         # env:
         #   JENKINS_WEBHOOK_URL: ${{ secrets.JENKINS_WEBHOOK_URL }}
         run: |
@@ -82,7 +46,7 @@ jobs:
               "repository_name": "${{ github.event.repository.name }}",
               "dst_branch": "${{ steps.pr-details.outputs.base_branch }}",
               "src_branch": "${{ steps.pr-details.outputs.pr_branch }}",
-              "lastCommitId": "${{ github.event.pull_request.head.sha || github.sha }}"
+              "lastCommitId": "${{ github.sha }}"
             }'
       
       - name: Add status check
@@ -92,4 +56,4 @@ jobs:
           echo "Repository: ${{ github.event.repository.name }}"
           echo "Source Branch (src_branch): ${{ steps.pr-details.outputs.pr_branch }}"
           echo "Destination Branch (dst_branch): ${{ steps.pr-details.outputs.base_branch }}"
-          echo "Last Commit ID: ${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "Last Commit ID: ${{ github.sha }}"
