@@ -48,8 +48,22 @@ jobs:
             --region us-east-1 \
             --document-name "AWS-RunShellScript" \
             --targets "Key=instanceIds,Values=i-0f34a1e3eb3c387db" \
-            --comment "Trigger Jenkins webhook from PR approval" \
-            --parameters 'commands=["curl -v https://google.com"]'
+            --comment "Trigger Jenkins from PR approval" \
+            --parameters 'commands=[
+              "REPO=\"${{ github.event.repository.name }}\"",
+              "SRC_BRANCH=\"${{ steps.pr-details.outputs.pr_branch }}\"",
+              "DST_BRANCH=\"${{ steps.pr-details.outputs.base_branch }}\"",
+              "COMMIT=\"${{ github.sha }}\"",
+              "echo \"DEBUG: repo=$REPO src=$SRC_BRANCH dst=$DST_BRANCH commit=$COMMIT\"",
+              "curl -X POST \"${{ secrets.JENKINS_WEBHOOK_URL }}\" \
+                -H \"Content-Type: application/json\" \
+                -d \"{ \
+                  \\\"repository_name\\\": \\\"$REPO\\\", \
+                  \\\"src_branch\\\": \\\"$SRC_BRANCH\\\", \
+                  \\\"dst_branch\\\": \\\"$DST_BRANCH\\\", \
+                  \\\"lastCommitId\\\": \\\"$COMMIT\\\" \
+                }\""
+            ]'
    
       - name: Add status check
         if: success()
