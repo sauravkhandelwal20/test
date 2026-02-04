@@ -35,12 +35,12 @@ jobs:
           echo "trigger_type=approve_comment" >> $GITHUB_OUTPUT
       
       - name: Trigger Jenkins Pipeline via Webhook
-        # env:
-        #   JENKINS_WEBHOOK_URL: ${{ secrets.JENKINS_WEBHOOK_URL }}
+        env:
+          JENKINS_WEBHOOK_URL: ${{ secrets.JENKINS_WEBHOOK_URL }}
         run: |
           # Trigger Jenkins job via webhook with JSON payload
           curl -X POST \
-            "https://unthriftily-unrenewable-charles.ngrok-free.dev/generic-webhook-trigger/invoke?token=test" \
+            "${JENKINS_WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
             -d '{
               "repository_name": "${{ github.event.repository.name }}",
