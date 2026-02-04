@@ -42,14 +42,13 @@ jobs:
             echo "trigger_type=approve_comment" >> $GITHUB_OUTPUT
           fi
       
-      - name: Trigger Jenkins Pipeline
-        env:
-          JENKINS_JOB_NAME: "testing"
+      - name: Trigger Jenkins Pipeline via Webhook
+        # env:
+        #   JENKINS_WEBHOOK_URL: ${{ secrets.JENKINS_WEBHOOK_URL }}
         run: |
-          # Trigger Jenkins job with parameters
+          # Trigger Jenkins job via webhook with parameters
           curl -X POST \
-            -u "https://unthriftily-unrenewable-charles.ngrok-free.dev/generic-webhook-trigger/invoke?token=test" \
-            "https://unthriftily-unrenewable-charles.ngrok-free.dev/job/${JENKINS_JOB_NAME}/build" \
+            "https://unthriftily-unrenewable-charles.ngrok-free.dev/generic-webhook-trigger/invoke?token=test" \
             --data-urlencode "PR_NUMBER=${{ steps.pr-details.outputs.pr_number }}" \
             --data-urlencode "PR_BRANCH=${{ steps.pr-details.outputs.pr_branch }}" \
             --data-urlencode "PR_AUTHOR=${{ steps.pr-details.outputs.pr_author }}" \
