@@ -74,13 +74,16 @@ jobs:
         # env:
         #   JENKINS_WEBHOOK_URL: ${{ secrets.JENKINS_WEBHOOK_URL }}
         run: |
-          # Trigger Jenkins job via webhook with parameters
+          # Trigger Jenkins job via webhook with JSON payload
           curl -X POST \
             "https://unthriftily-unrenewable-charles.ngrok-free.dev/generic-webhook-trigger/invoke?token=test" \
-            --data-urlencode "repository_name=${{ github.event.repository.name }}" \
-            --data-urlencode "dst_branch=${{ steps.pr-details.outputs.base_branch }}" \
-            --data-urlencode "src_branch=${{ steps.pr-details.outputs.pr_branch }}" \
-            --data-urlencode "lastCommitId=${{ github.event.pull_request.head.sha || github.sha }}"
+            -H "Content-Type: application/json" \
+            -d '{
+              "repository_name": "${{ github.event.repository.name }}",
+              "dst_branch": "${{ steps.pr-details.outputs.base_branch }}",
+              "src_branch": "${{ steps.pr-details.outputs.pr_branch }}",
+              "lastCommitId": "${{ github.event.pull_request.head.sha || github.sha }}"
+            }'
       
       - name: Add status check
         if: success()
