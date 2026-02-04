@@ -34,21 +34,23 @@ jobs:
           echo "base_branch=$BASE_BRANCH" >> $GITHUB_OUTPUT
           echo "trigger_type=approve_comment" >> $GITHUB_OUTPUT
       
-      - name: Trigger Jenkins Pipeline via Webhook
-        env:
-          JENKINS_WEBHOOK_URL: ${{ secrets.JENKINS_WEBHOOK_URL }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.SECRET_KEY }}
+          aws-region: ap-south-1
+
+
+      - name: Trigger Jenkins via AWS SSM (inline curl)
         run: |
-          # Trigger Jenkins job via webhook with JSON payload
-          curl -X POST \
-            "${JENKINS_WEBHOOK_URL}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "repository_name": "${{ github.event.repository.name }}",
-              "dst_branch": "${{ steps.pr-details.outputs.base_branch }}",
-              "src_branch": "${{ steps.pr-details.outputs.pr_branch }}",
-              "lastCommitId": "${{ github.sha }}"
-            }'
-      
+          aws ssm send-command \
+            --region us-east-1 \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=instanceIds,Values=i-0f34a1e3eb3c387db" \
+            --comment "Trigger Jenkins webhook from PR approval" \
+            --parameters 'commands=["curl -v https://google.com"]'
+   
       - name: Add status check
         if: success()
         run: |
