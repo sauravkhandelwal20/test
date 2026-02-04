@@ -49,7 +49,7 @@ jobs:
           # Trigger Jenkins job with parameters
           curl -X POST \
             -u "https://unthriftily-unrenewable-charles.ngrok-free.dev/generic-webhook-trigger/invoke?token=test" \
-            "https://unthriftily-unrenewable-charles.ngrok-free.dev/job/${JENKINS_JOB_NAME}/buildWithParameters" \
+            "https://unthriftily-unrenewable-charles.ngrok-free.dev/job/${JENKINS_JOB_NAME}/build" \
             --data-urlencode "PR_NUMBER=${{ steps.pr-details.outputs.pr_number }}" \
             --data-urlencode "PR_BRANCH=${{ steps.pr-details.outputs.pr_branch }}" \
             --data-urlencode "PR_AUTHOR=${{ steps.pr-details.outputs.pr_author }}" \
